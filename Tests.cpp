@@ -1,13 +1,14 @@
 #define CATCH_CONFIG_MAIN
 
-#include <catch/catch.hpp>
+#include "catch_amalgamated.hpp"
+#include <limits>
 
-enum class Tries{
+enum class Tries {
     First,
     Second
 };
 
-enum Result{
+enum Result {
     Strike,
     Spare,
     Miss
@@ -15,20 +16,44 @@ enum Result{
 
 using Pins = unsigned short;
 
-Result BowlerResult([[maybe_unused]]Tries tries, [[maybe_unused]]Pins knockedPins){
+Result BowlerResult([[maybe_unused]] Tries tries, [[maybe_unused]] Pins knockedPins) {
     return Result::Miss;
 }
 
-TEST_CASE("First ball knock all pins", "[Bowling]"){
-    Pins knocketPins = 10;
-    auto result = BowlerResult(Tries::First, knocketPins);
+constexpr Pins allPins = 10;
+
+TEST_CASE("First ball knock all pins", "[Bowling]") {
+    auto result = BowlerResult(Tries::First, allPins);
     REQUIRE(result == Result::Strike);
 }
 
-TEST_CASE("Second ball knock all pins", "[Bowling]"){
-    Pins knocketPins = 10;
+TEST_CASE("First ball knock less pins") {
+    auto knocketPins = GENERATE(0, 1, 5, 9);
+    auto result = BowlerResult(Tries::First, knocketPins);
+    REQUIRE(result == Result::Miss);
+}
+
+TEST_CASE("First ball knock more than all pins", "[Bowling]") {
+    Pins knocketPins = GENERATE(allPins + 1, allPins + 2, std::numeric_limits<Pins>::max(), std::numeric_limits<Pins>::max() - 1);
+    auto result = BowlerResult(Tries::First, knocketPins);
+    REQUIRE(result == Result::Miss);
+}
+
+TEST_CASE("Second ball knock all pins", "[Bowling]") {
+    auto result = BowlerResult(Tries::Second, allPins);
+    REQUIRE(result == Result::Spare);
+}
+
+TEST_CASE("Second ball knock less pins", "[Bowling]") {
+    Pins knocketPins = GENERATE(0, 1, 5, 9);
     auto result = BowlerResult(Tries::Second, knocketPins);
-    REQUIRE(result == Result::Strike);
+    REQUIRE(result == Result::Miss);
+}
+
+TEST_CASE("Second ball knock more than all pins", "[Bowling]") {
+    Pins knocketPins = GENERATE(allPins + 1, allPins + 2, std::numeric_limits<Pins>::max(), std::numeric_limits<Pins>::max() - 1);
+    auto result = BowlerResult(Tries::Second, knocketPins);
+    REQUIRE(result == Result::Miss);
 }
 
 /*
