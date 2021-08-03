@@ -1,7 +1,8 @@
 #define CATCH_CONFIG_MAIN
 
-#include "catch_amalgamated.hpp"
+#include <array>
 #include <limits>
+#include "catch_amalgamated.hpp"
 
 enum class Tries {
     First,
@@ -11,49 +12,227 @@ enum class Tries {
 enum Result {
     Strike,
     Spare,
-    Miss
+    Miss,
+    Unresolved,
+    Disqualification
 };
 
 using Pins = unsigned short;
 
 Result BowlerResult([[maybe_unused]] Tries tries, [[maybe_unused]] Pins knockedPins) {
-    return Result::Miss;
+    return Result::Unresolved;
+}
+
+struct FrameResult {
+    Result addBrawlerResult([[maybe_unused]] Pins knockedPins) {
+        return Result::Unresolved;
+    }
+
+    Pins firstBallKnocketPins{};
+    Pins secondBallKnocketPins{};
+    Result generalResult{Result::Unresolved};
+};
+
+int getFramePoints([[maybe_unused]] const FrameResult& frameResult, [[maybe_unused]] const FrameResult& frameResult2 = {}, [[maybe_unused]] const FrameResult& frameResult3 = {}) {
+    return 0;
+}
+
+using Frames = std::array<FrameResult, 11>;
+
+Frames textToFrames([[maybe_unused]] const std::string& framesText) {
+    return Frames{};
 }
 
 constexpr Pins allPins = 10;
 
-TEST_CASE("First ball knock all pins", "[Bowling]") {
+TEST_CASE("First ball knock all pins", "[BowlerResult]") {
     auto result = BowlerResult(Tries::First, allPins);
-    REQUIRE(result == Result::Strike);
+    CHECK(result == Result::Strike);
 }
 
-TEST_CASE("First ball knock less pins") {
-    auto knocketPins = GENERATE(0, 1, 5, 9);
+TEST_CASE("First ball knock less pins", "[BowlerResult]") {
+    auto knocketPins = GENERATE(0, 1, 5, allPins - 1);
     auto result = BowlerResult(Tries::First, knocketPins);
-    REQUIRE(result == Result::Miss);
+    CHECK(result == Result::Miss);
 }
 
-TEST_CASE("First ball knock more than all pins", "[Bowling]") {
+TEST_CASE("First ball knock more than all pins", "[BowlerResult]") {
     Pins knocketPins = GENERATE(allPins + 1, allPins + 2, std::numeric_limits<Pins>::max(), std::numeric_limits<Pins>::max() - 1);
     auto result = BowlerResult(Tries::First, knocketPins);
-    REQUIRE(result == Result::Miss);
+    CHECK(result == Result::Disqualification);
 }
 
-TEST_CASE("Second ball knock all pins", "[Bowling]") {
+TEST_CASE("Second ball knock all pins", "[BowlerResult]") {
     auto result = BowlerResult(Tries::Second, allPins);
-    REQUIRE(result == Result::Spare);
+    CHECK(result == Result::Spare);
 }
 
-TEST_CASE("Second ball knock less pins", "[Bowling]") {
-    Pins knocketPins = GENERATE(0, 1, 5, 9);
+TEST_CASE("Second ball knock less pins", "[BowlerResult]") {
+    Pins knocketPins = GENERATE(0, 1, 5, allPins - 1);
     auto result = BowlerResult(Tries::Second, knocketPins);
-    REQUIRE(result == Result::Miss);
+    CHECK(result == Result::Miss);
 }
 
-TEST_CASE("Second ball knock more than all pins", "[Bowling]") {
+TEST_CASE("Second ball knock more than all pins", "[BowlerResult]") {
     Pins knocketPins = GENERATE(allPins + 1, allPins + 2, std::numeric_limits<Pins>::max(), std::numeric_limits<Pins>::max() - 1);
     auto result = BowlerResult(Tries::Second, knocketPins);
-    REQUIRE(result == Result::Miss);
+    CHECK(result == Result::Disqualification);
+}
+
+/////////////////////////////////////////////////////////////
+
+TEST_CASE("Initial frameResult should be unresolved", "[FrameResult]") {
+    FrameResult frameResult;
+    CHECK(frameResult.generalResult == Result::Unresolved);
+    CHECK(frameResult.firstBallKnocketPins == 0);
+    CHECK(frameResult.secondBallKnocketPins == 0);
+}
+
+TEST_CASE("frameResult after first miss", "[FrameResult]") {
+    FrameResult frameResult;
+    Pins knocketPins = GENERATE(0, 1, 5, allPins - 1);
+
+    auto result = frameResult.addBrawlerResult(knocketPins);
+
+    CHECK(result == Result::Miss);
+    CHECK(frameResult.generalResult == Result::Unresolved);
+    CHECK(frameResult.firstBallKnocketPins == knocketPins);
+    CHECK(frameResult.secondBallKnocketPins == 0);
+}
+
+TEST_CASE("frameResult after second miss", "[FrameResult]") {
+    FrameResult frameResult;
+    Pins knocketPins = GENERATE(0, 1, 5, allPins - 1);
+    Pins knocketPins2 = GENERATE(0, 1, 5, allPins - 1);
+    auto [first, second] = std::minmax(knocketPins, knocketPins2);
+
+    frameResult.addBrawlerResult(first);
+    auto result = frameResult.addBrawlerResult(second);
+
+    CHECK(result == Result::Miss);
+    CHECK(frameResult.generalResult == Result::Miss);
+    CHECK(frameResult.firstBallKnocketPins == first);
+    CHECK(frameResult.secondBallKnocketPins == second);
+}
+
+TEST_CASE("frameResult after spare", "[FrameResult]") {
+    FrameResult frameResult;
+    Pins knocketPins = GENERATE(0, 1, 5, allPins - 1);
+
+    frameResult.addBrawlerResult(knocketPins);
+    auto result = frameResult.addBrawlerResult(allPins);
+
+    CHECK(result == Result::Spare);
+    CHECK(frameResult.generalResult == Result::Spare);
+    CHECK(frameResult.firstBallKnocketPins == knocketPins);
+    CHECK(frameResult.secondBallKnocketPins == allPins);
+}
+
+TEST_CASE("frameResult after second miss have less knocket pins", "[FrameResult]") {
+    FrameResult frameResult;
+    Pins knocketPins = GENERATE(0, 2, 6, allPins - 2);
+    Pins knocketPins2 = GENERATE(1, 3, 5, allPins - 1);
+    auto [first, second] = std::minmax(knocketPins, knocketPins2);
+
+    frameResult.addBrawlerResult(second);
+    auto result = frameResult.addBrawlerResult(first);
+
+    CHECK(result == Result::Miss);
+    CHECK(frameResult.generalResult == Result::Disqualification);
+    CHECK(frameResult.firstBallKnocketPins == second);
+    CHECK(frameResult.secondBallKnocketPins == 0);
+}
+
+TEST_CASE("frameResult after strike", "[FrameResult]") {
+    FrameResult frameResult;
+
+    auto result = frameResult.addBrawlerResult(allPins);
+
+    CHECK(result == Result::Strike);
+    CHECK(frameResult.generalResult == Result::Strike);
+    CHECK(frameResult.firstBallKnocketPins == allPins);
+    CHECK(frameResult.secondBallKnocketPins == 0);
+}
+
+TEST_CASE("frameResult after strike try strike same frame", "[FrameResult]") {
+    FrameResult frameResult;
+    Pins knocketPins = GENERATE(0, 2, 6, allPins - 1, allPins);
+
+    frameResult.addBrawlerResult(allPins);
+    frameResult.addBrawlerResult(knocketPins);
+
+    CHECK(frameResult.generalResult == Result::Disqualification);
+    CHECK(frameResult.firstBallKnocketPins == allPins);
+    CHECK(frameResult.secondBallKnocketPins == 0);
+}
+
+/////////////////////////////////////////////////////////////
+
+TEST_CASE("getFramePoints from unresolved frameResult", "[getFramePoints]") {
+    FrameResult frameResult;
+    auto points = getFramePoints(frameResult);
+    CHECK(points == 0);
+}
+
+TEST_CASE("getFramePoints from miss frameResult", "[getFramePoints]") {
+    Pins knocketPins = GENERATE(0, 1, 5, allPins - 1);
+    Pins knocketPins2 = GENERATE(0, 1, 5, allPins - 1);
+    auto [first, second] = std::minmax(knocketPins, knocketPins2);
+    FrameResult frameResult{first, second, Result::Miss};
+
+    auto points = getFramePoints(frameResult);
+    CHECK(points == second);
+}
+
+TEST_CASE("getFramePoints from strike frameResult falowed by misses", "[getFramePoints]") {
+    FrameResult strikeframeResult{10, 0, Result::Strike};
+    Pins knocketPins = GENERATE(0, 1, 5, allPins - 1);
+    Pins knocketPins2 = GENERATE(0, 1, 5, allPins - 1);
+    auto [first, second] = std::minmax(knocketPins, knocketPins2);
+    FrameResult frameResult{first, second, Result::Miss};
+
+    auto points = getFramePoints(strikeframeResult, frameResult);
+    CHECK(points == allPins + first + second);
+}
+
+TEST_CASE("getFramePoints from strike frameResult falowed by strikes", "[getFramePoints]") {
+    FrameResult strikeframeResult{10, 0, Result::Strike};
+
+    auto points = getFramePoints(strikeframeResult, strikeframeResult, strikeframeResult);
+    CHECK(points == allPins + allPins + allPins);
+}
+
+TEST_CASE("getFramePoints from spare frameResult falowed by misses", "[getFramePoints]") {
+    Pins prespareKnockedPins = GENERATE(0, 1, 5, allPins - 1);
+    FrameResult spareframeResult{prespareKnockedPins, 10, Result::Spare};
+
+    Pins knocketPins = GENERATE(0, 1, 5, allPins - 1);
+    Pins knocketPins2 = GENERATE(0, 1, 5, allPins - 1);
+    auto [first, second] = std::minmax(knocketPins, knocketPins2);
+    FrameResult frameResult{first, second, Result::Miss};
+
+    auto points = getFramePoints(spareframeResult, frameResult);
+    CHECK(points == allPins + first);
+}
+
+TEST_CASE("getFramePoints from spare frameResult falowed by strikes", "[getFramePoints]") {
+    Pins prespareKnockedPins = GENERATE(0, 1, 5, allPins - 1);
+    FrameResult spareframeResult{prespareKnockedPins, 10, Result::Spare};
+    FrameResult strikeframeResult{10, 0, Result::Strike};
+
+    auto points = getFramePoints(spareframeResult, strikeframeResult, strikeframeResult);
+    CHECK(points == allPins + allPins);
+}
+
+/////////////////////////////////////////////////////////////
+
+TEST_CASE("Initial frames should be unresolved", "[Frames]") {
+    Frames frames;
+    for (const auto& frame : frames) {
+        CHECK(frame.generalResult == Result::Unresolved);
+        CHECK(frame.firstBallKnocketPins == 0);
+        CHECK(frame.secondBallKnocketPins == 0);
+    }
 }
 
 /*
